@@ -21,21 +21,28 @@ export function SignInForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
     setError(null)
+    setIsSubmitting(true)
 
     try {
       const result = await signIn(email, password)
-      if (result.success) {
+      if (result?.success) {
         router.push("/dashboard")
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in. Please check your credentials.")
+    } finally {
+      setIsSubmitting(false)
     }
   }
+
+  // Use local isSubmitting state instead of global loading state
+  const isLoading = isSubmitting || loading
 
   return (
     <div className="grid gap-6">
@@ -57,7 +64,7 @@ export function SignInForm() {
               autoCapitalize="none"
               autoComplete="email"
               autoCorrect="off"
-              disabled={loading}
+              disabled={isLoading}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -79,7 +86,7 @@ export function SignInForm() {
               type="password"
               autoCapitalize="none"
               autoComplete="current-password"
-              disabled={loading}
+              disabled={isLoading}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -90,6 +97,7 @@ export function SignInForm() {
               id="remember"
               checked={rememberMe}
               onCheckedChange={(checked) => setRememberMe(checked === true)}
+              disabled={isLoading}
             />
             <Label
               htmlFor="remember"
@@ -98,8 +106,8 @@ export function SignInForm() {
               Remember me
             </Label>
           </div>
-          <Button disabled={loading} className="w-full">
-            {loading ? "Signing in..." : "Sign In"}
+          <Button disabled={isLoading} className="w-full">
+            {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </div>
       </form>

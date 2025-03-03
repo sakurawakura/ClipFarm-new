@@ -27,6 +27,7 @@ interface UserData {
 interface AuthContextType {
   user: User | null
   userData: UserData | null
+  isAuthReady: boolean // New property to track initial auth state
   loading: boolean
   signUp: (email: string, password: string, role: UserRole, name: string) => Promise<void | { success: boolean }>
   signIn: (email: string, password: string) => Promise<void | { success: boolean }>
@@ -47,7 +48,8 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
   const [userData, setUserData] = useState<UserData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isAuthReady, setIsAuthReady] = useState(false) // Track if initial auth check is complete
+  const [loading, setLoading] = useState(false) // Only for operations, not initial load
   const router = useRouter()
 
   useEffect(() => {
@@ -74,7 +76,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUserData(null)
       }
 
-      setLoading(false)
+      setIsAuthReady(true) // Mark auth as ready after initial check
     })
 
     return () => unsubscribe()
@@ -86,7 +88,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
 
-      // Store additional user data in Firestore
       await setDoc(doc(db, "users", user.uid), {
         email,
         role,
@@ -94,7 +95,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         createdAt: new Date().toISOString(),
       })
 
-      // Sign out the user after registration
       await signOut(auth)
       return { success: true }
     } catch (error: any) {
@@ -119,29 +119,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logOut = async () => {
     try {
+      setLoading(true)
       await signOut(auth)
       router.push("/")
     } catch (error: any) {
       throw new Error(error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
   const resetPassword = async (email: string) => {
     try {
+      setLoading(true)
       await sendPasswordResetEmail(auth, email)
     } catch (error: any) {
       throw new Error(error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
   const value = {
     user,
     userData,
+    isAuthReady,
     loading,
     signUp,
     signIn,
     logOut,
     resetPassword,
+  }
+
+  // Don't render children until initial auth check is complete
+  if (!isAuthReady) {
+    return null
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
