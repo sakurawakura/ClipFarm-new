@@ -51,70 +51,47 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [isAuthReady, setIsAuthReady] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [authError, setAuthError] = useState<Error | null>(null)
   const router = useRouter()
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout
-    let unsubscribe: () => void
+    try {
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        async (currentUser) => {
+          setUser(currentUser)
 
-    const initAuth = async () => {
-      try {
-        // Set a timeout for auth initialization
-        const authTimeout = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(new Error("Auth initialization timed out"))
-          }, 5000) // 5 second timeout
-        })
-
-        // Set up auth state listener
-        const authInit = new Promise<void>((resolve) => {
-          unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+          if (currentUser) {
             try {
-              setUser(currentUser)
+              const userDocRef = doc(db, "users", currentUser.uid)
+              const userDoc = await getDoc(userDocRef)
 
-              if (currentUser) {
-                const userDocRef = doc(db, "users", currentUser.uid)
-                const userDoc = await getDoc(userDocRef)
-
-                if (userDoc.exists()) {
-                  setUserData({
-                    uid: currentUser.uid,
-                    email: currentUser.email,
-                    role: userDoc.data().role as UserRole,
-                    displayName: currentUser.displayName || userDoc.data().name,
-                  })
-                }
-              } else {
-                setUserData(null)
+              if (userDoc.exists()) {
+                setUserData({
+                  uid: currentUser.uid,
+                  email: currentUser.email,
+                  role: userDoc.data().role as UserRole,
+                  displayName: currentUser.displayName || userDoc.data().name,
+                })
               }
-
-              resolve()
             } catch (error) {
-              console.error("Error in auth state change:", error)
-              resolve() // Resolve anyway to prevent hanging
+              console.error("Error fetching user data:", error)
             }
-          })
-        })
+          } else {
+            setUserData(null)
+          }
 
-        // Race between timeout and auth initialization
-        await Promise.race([authInit, authTimeout])
-        clearTimeout(timeoutId)
-        setIsAuthReady(true)
-      } catch (error) {
-        console.error("Auth initialization error:", error)
-        setAuthError(error as Error)
-        setIsAuthReady(true) // Set ready even on error to prevent infinite loading
-      }
-    }
+          setIsAuthReady(true)
+        },
+        (error) => {
+          console.error("Auth state change error:", error)
+          setIsAuthReady(true)
+        },
+      )
 
-    initAuth()
-
-    return () => {
-      clearTimeout(timeoutId)
-      if (unsubscribe) {
-        unsubscribe()
-      }
+      return () => unsubscribe()
+    } catch (error) {
+      console.error("Auth initialization error:", error)
+      setIsAuthReady(true)
     }
   }, [])
 
@@ -134,6 +111,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await signOut(auth)
       return { success: true }
     } catch (error: any) {
+      console.error("Sign up error:", error)
       throw new Error(error.message)
     } finally {
       setLoading(false)
@@ -147,6 +125,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       router.push("/dashboard")
       return { success: true }
     } catch (error: any) {
+      console.error("Sign in error:", error)
       throw new Error(error.message)
     } finally {
       setLoading(false)
@@ -159,6 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await signOut(auth)
       router.push("/")
     } catch (error: any) {
+      console.error("Sign out error:", error)
       throw new Error(error.message)
     } finally {
       setLoading(false)
@@ -170,6 +150,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(true)
       await sendPasswordResetEmail(auth, email)
     } catch (error: any) {
+      console.error("Password reset error:", error)
       throw new Error(error.message)
     } finally {
       setLoading(false)
@@ -185,20 +166,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signIn,
     logOut,
     resetPassword,
-  }
-
-  // Show error if auth initialization failed
-  if (authError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="max-w-md p-4 text-center">
-          <h2 className="mb-2 text-lg font-semibold text-destructive">Authentication Error</h2>
-          <p className="text-sm text-muted-foreground">
-            There was a problem connecting to the authentication service. Please try refreshing the page.
-          </p>
-        </div>
-      </div>
-    )
   }
 
   // Show loading screen while checking auth state

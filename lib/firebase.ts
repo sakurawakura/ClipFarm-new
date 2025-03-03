@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app"
 import { getAuth } from "firebase/auth"
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore"
+import { getFirestore } from "firebase/firestore"
 
 const firebaseConfig = {
   apiKey: "AIzaSyDxaCtdJTxZEALWGLD1Vpca0mjRsrXelcg",
@@ -8,26 +8,21 @@ const firebaseConfig = {
   projectId: "clipfarm-6555c",
   storageBucket: "clipfarm-6555c.appspot.com",
   messagingSenderId: "315305785683",
-  appId: "1:315305785683:web:YOUR_APP_ID", // You'll need to add your actual App ID here
+  appId: "1:315305785683:web:YOUR_APP_ID", // Make sure to replace this with your actual App ID
 }
 
 // Initialize Firebase immediately, but only once
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+let app
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+} catch (error) {
+  console.error("Error initializing Firebase:", error)
+  throw error
+}
 
 // Initialize services
 const auth = getAuth(app)
 const db = getFirestore(app)
-
-// Enable offline persistence for Firestore
-if (typeof window !== "undefined") {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === "failed-precondition") {
-      console.warn("Multiple tabs open, persistence can only be enabled in one tab at a time.")
-    } else if (err.code === "unimplemented") {
-      console.warn("The current browser does not support persistence.")
-    }
-  })
-}
 
 export { app, auth, db }
 
