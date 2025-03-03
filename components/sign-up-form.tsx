@@ -4,18 +4,17 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Github } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { CheckCircle2, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
 
 export function SignUpForm() {
-  const { signUp, signInWithGithub, loading } = useAuth()
+  const { signUp, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const defaultRole = searchParams?.get("role") || "clipper"
@@ -25,6 +24,7 @@ export function SignUpForm() {
   const [password, setPassword] = useState("")
   const [role, setRole] = useState<"creator" | "clipper">(defaultRole as "creator" | "clipper")
   const [error, setError] = useState<string | null>(null)
+  const [isSuccess, setIsSuccess] = useState(false)
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -36,18 +36,16 @@ export function SignUpForm() {
     }
 
     try {
-      await signUp(email, password, role, name)
+      const result = await signUp(email, password, role, name)
+      if (result.success) {
+        setIsSuccess(true)
+        // Redirect to sign-in page after 2 seconds
+        setTimeout(() => {
+          router.push("/sign-in")
+        }, 2000)
+      }
     } catch (err: any) {
       setError(err.message || "Failed to create account. Please try again.")
-    }
-  }
-
-  async function handleGithubSignIn() {
-    setError(null)
-    try {
-      await signInWithGithub()
-    } catch (err: any) {
-      setError(err.message || "Failed to sign in with GitHub.")
     }
   }
 
@@ -57,6 +55,13 @@ export function SignUpForm() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {isSuccess && (
+        <Alert className="border-green-500 text-green-500">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>Account created successfully! Redirecting to login...</AlertDescription>
         </Alert>
       )}
 
@@ -70,7 +75,7 @@ export function SignUpForm() {
               type="text"
               autoCapitalize="words"
               autoComplete="name"
-              disabled={loading}
+              disabled={loading || isSuccess}
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -85,7 +90,7 @@ export function SignUpForm() {
               autoCapitalize="none"
               autoComplete="email"
               autoCorrect="off"
-              disabled={loading}
+              disabled={loading || isSuccess}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -99,7 +104,7 @@ export function SignUpForm() {
               type="password"
               autoCapitalize="none"
               autoComplete="new-password"
-              disabled={loading}
+              disabled={loading || isSuccess}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -112,6 +117,7 @@ export function SignUpForm() {
               value={role}
               onValueChange={(value) => setRole(value as "creator" | "clipper")}
               className="flex gap-4"
+              disabled={loading || isSuccess}
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="creator" id="creator" />
@@ -127,23 +133,11 @@ export function SignUpForm() {
               </div>
             </RadioGroup>
           </div>
-          <Button disabled={loading} className="w-full">
-            {loading ? "Creating account..." : "Create Account"}
+          <Button disabled={loading || isSuccess} className="w-full">
+            {loading ? "Creating account..." : isSuccess ? "Account created!" : "Create Account"}
           </Button>
         </div>
       </form>
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-        </div>
-      </div>
-      <Button variant="outline" type="button" disabled={loading} className="w-full" onClick={handleGithubSignIn}>
-        <Github className="mr-2 size-4" />
-        GitHub
-      </Button>
     </div>
   )
 }

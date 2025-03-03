@@ -10,8 +10,6 @@ import {
   signInWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
-  signInWithPopup,
-  GithubAuthProvider,
 } from "firebase/auth"
 import { doc, setDoc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
@@ -30,9 +28,8 @@ interface AuthContextType {
   user: User | null
   userData: UserData | null
   loading: boolean
-  signUp: (email: string, password: string, role: UserRole, name: string) => Promise<void>
-  signIn: (email: string, password: string) => Promise<void>
-  signInWithGithub: () => Promise<void>
+  signUp: (email: string, password: string, role: UserRole, name: string) => Promise<void | { success: boolean }>
+  signIn: (email: string, password: string) => Promise<void | { success: boolean }>
   logOut: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
 }
@@ -97,7 +94,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         createdAt: new Date().toISOString(),
       })
 
-      router.push("/dashboard")
+      // Sign out the user after registration
+      await signOut(auth)
+      return { success: true }
     } catch (error: any) {
       throw new Error(error.message)
     } finally {
@@ -110,30 +109,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(true)
       await signInWithEmailAndPassword(auth, email, password)
       router.push("/dashboard")
-    } catch (error: any) {
-      throw new Error(error.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const signInWithGithub = async () => {
-    try {
-      setLoading(true)
-      const provider = new GithubAuthProvider()
-      const result = await signInWithPopup(auth, provider)
-      const user = result.user
-
-      // Check if user exists in Firestore
-      const userDocRef = doc(db, "users", user.uid)
-      const userDoc = await getDoc(userDocRef)
-
-      if (!userDoc.exists()) {
-        // First time GitHub sign in, redirect to role selection
-        router.push("/complete-profile")
-      } else {
-        router.push("/dashboard")
-      }
+      return { success: true }
     } catch (error: any) {
       throw new Error(error.message)
     } finally {
@@ -164,7 +140,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loading,
     signUp,
     signIn,
-    signInWithGithub,
     logOut,
     resetPassword,
   }
