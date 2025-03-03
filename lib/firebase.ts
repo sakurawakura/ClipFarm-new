@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app"
+import { initializeApp, getApps, getApp } from "firebase/app"
 import { getAuth } from "firebase/auth"
 import { getFirestore } from "firebase/firestore"
 
@@ -11,11 +11,23 @@ const firebaseConfig = {
   appId: "1:315305785683:web:YOUR_APP_ID", // You'll need to add your actual App ID here
 }
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig)
+// Initialize Firebase immediately, but only once
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
 
-// Initialize Firebase Authentication and get a reference to the service
-export const auth = getAuth(app)
-export const db = getFirestore(app)
-export default app
+// Initialize services
+const auth = getAuth(app)
+const db = getFirestore(app)
+
+// Enable offline persistence for Firestore
+if (typeof window !== "undefined") {
+  db.enablePersistence().catch((err) => {
+    if (err.code === "failed-precondition") {
+      console.warn("Multiple tabs open, persistence can only be enabled in one tab at a time.")
+    } else if (err.code === "unimplemented") {
+      console.warn("The current browser does not support persistence.")
+    }
+  })
+}
+
+export { app, auth, db }
 

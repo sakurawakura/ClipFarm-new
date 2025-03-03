@@ -51,36 +51,71 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [isAuthReady, setIsAuthReady] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [authError, setAuthError] = useState<Error | null>(null)
   const router = useRouter()
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser)
+    let timeoutId: NodeJS.Timeout
+    let unsubscribe: () => void
 
-      if (currentUser) {
-        try {
-          const userDocRef = doc(db, "users", currentUser.uid)
-          const userDoc = await getDoc(userDocRef)
+    const initAuth = async () => {
+      try {
+        // Set a timeout for auth initialization
+        const authTimeout = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error("Auth initialization timed out"))
+          }, 5000) // 5 second timeout
+        })
 
-          if (userDoc.exists()) {
-            setUserData({
-              uid: currentUser.uid,
-              email: currentUser.email,
-              role: userDoc.data().role as UserRole,
-              displayName: currentUser.displayName || userDoc.data().name,
-            })
-          }
-        } catch (error) {
-          console.error("Error fetching user data:", error)
-        }
-      } else {
-        setUserData(null)
+        // Set up auth state listener
+        const authInit = new Promise<void>((resolve) => {
+          unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            try {
+              setUser(currentUser)
+
+              if (currentUser) {
+                const userDocRef = doc(db, "users", currentUser.uid)
+                const userDoc = await getDoc(userDocRef)
+
+                if (userDoc.exists()) {
+                  setUserData({
+                    uid: currentUser.uid,
+                    email: currentUser.email,
+                    role: userDoc.data().role as UserRole,
+                    displayName: currentUser.displayName || userDoc.data().name,
+                  })
+                }
+              } else {
+                setUserData(null)
+              }
+
+              resolve()
+            } catch (error) {
+              console.error("Error in auth state change:", error)
+              resolve() // Resolve anyway to prevent hanging
+            }
+          })
+        })
+
+        // Race between timeout and auth initialization
+        await Promise.race([authInit, authTimeout])
+        clearTimeout(timeoutId)
+        setIsAuthReady(true)
+      } catch (error) {
+        console.error("Auth initialization error:", error)
+        setAuthError(error as Error)
+        setIsAuthReady(true) // Set ready even on error to prevent infinite loading
       }
+    }
 
-      setIsAuthReady(true)
-    })
+    initAuth()
 
-    return () => unsubscribe()
+    return () => {
+      clearTimeout(timeoutId)
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
   }, [])
 
   const signUp = async (email: string, password: string, role: UserRole, name: string) => {
@@ -150,6 +185,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signIn,
     logOut,
     resetPassword,
+  }
+
+  // Show error if auth initialization failed
+  if (authError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="max-w-md p-4 text-center">
+          <h2 className="mb-2 text-lg font-semibold text-destructive">Authentication Error</h2>
+          <p className="text-sm text-muted-foreground">
+            There was a problem connecting to the authentication service. Please try refreshing the page.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   // Show loading screen while checking auth state
