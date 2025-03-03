@@ -14,6 +14,7 @@ import {
 import { doc, setDoc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
+import { LoadingScreen } from "@/components/loading-screen"
 
 type UserRole = "creator" | "clipper"
 
@@ -27,7 +28,7 @@ interface UserData {
 interface AuthContextType {
   user: User | null
   userData: UserData | null
-  isAuthReady: boolean // New property to track initial auth state
+  isAuthReady: boolean
   loading: boolean
   signUp: (email: string, password: string, role: UserRole, name: string) => Promise<void | { success: boolean }>
   signIn: (email: string, password: string) => Promise<void | { success: boolean }>
@@ -48,8 +49,8 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
   const [userData, setUserData] = useState<UserData | null>(null)
-  const [isAuthReady, setIsAuthReady] = useState(false) // Track if initial auth check is complete
-  const [loading, setLoading] = useState(false) // Only for operations, not initial load
+  const [isAuthReady, setIsAuthReady] = useState(false)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -76,7 +77,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUserData(null)
       }
 
-      setIsAuthReady(true) // Mark auth as ready after initial check
+      setIsAuthReady(true)
     })
 
     return () => unsubscribe()
@@ -151,9 +152,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     resetPassword,
   }
 
-  // Don't render children until initial auth check is complete
+  // Show loading screen while checking auth state
   if (!isAuthReady) {
-    return null
+    return <LoadingScreen />
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
